@@ -7,7 +7,7 @@ import { Worker } from 'worker_threads';
 
 const testFiles = {
   basic: Buffer.from('Hello world!'),
-  text: 'https://www.gutenberg.org/files/2701/old/moby10b.txt',
+  text: 'https://www.gutenberg.org/files/2701/2701-0.txt',
   smallImage: 'https://hlevkin.com/hlevkin/TestImages/new/Rainier.bmp',
   image: 'https://www.hlevkin.com/hlevkin/TestImages/new/Maltese.bmp',
   largeImage: 'https://www.hlevkin.com/hlevkin/TestImages/new/Sunrise.bmp'

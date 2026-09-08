@@ -1,0 +1,71 @@
+# Upstream fflate ships no GitHub Actions CI (only .github/ISSUE_TEMPLATE).
+# This workflow was authored for the sealed build: it builds the library,
+# runs the project's own uvu test suite, and packs the publishable tarball.
+name: seal-build
+
+on:
+  workflow_dispatch:
+    inputs:
+      test-filter:
+        description: "uvu filename pattern; empty runs the full suite"
+        required: false
+        default: ""
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        # 18.18.0 is the runtime that packed the published tarball; 20 is the
+        # newest LTS this release's test harness supports. Node 22 (Apr 2024,
+        # after this Feb 2024 release) rejects the harness's
+        # `new Worker(..., { transferList })` on a pooled Buffer's shared
+        # ArrayBuffer -- "Cannot transfer object of unsupported type" in
+        # test/util.ts -- so it is out of this release's supported range.
+        node: ["18.18.0", "20"]
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node 18.18.0 bundles npm 9.8.1, the npm that packed the public tarball.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Pin registry to release date
+        run: |
+          npm config set registry https://time-machines-npm.sealsecurity.io/
+          npm config set //time-machines-npm.sealsecurity.io/:_authToken=2024-02-07T00:36:56.045000Z
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Only build the library: the published tarball ships lib/, esm/, umd/,
+      # package.json, README.md, CHANGELOG.md and LICENSE. `npm run build` also
+      # runs build:docs (typedoc) and build:demo (parcel), whose outputs land in
+      # docs/ and dist/ and are excluded by .npmignore.
+      - name: Build library
+        run: npm run build:lib
+
+      - name: Run tests
+        run: |
+          if [ -n "${{ inputs.test-filter }}" ]; then
+            TS_NODE_PROJECT=test/tsconfig.json npx uvu -b -r ts-node/register test "${{ inputs.test-filter }}"
+          else
+            npm test
+          fi
+
+      # --ignore-scripts is required: the prepack script would re-run the FULL
+      # `npm run build` (including the parcel demo build) plus the whole test
+      # suite a second time.
+      - name: Pack tarball
+        if: matrix.node == '18.18.0'
+        run: npm pack --ignore-scripts
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.node == '18.18.0'
+        with:
+          name: fflate-tarball
+          path: fflate-0.8.2.tgz
+          if-no-files-found: error
