@@ -2703,14 +2703,17 @@ const slzh = (d: Uint8Array, b: number) => b + 30 + b2(d, b + 26) + b2(d, b + 28
 
 // read zip header
 const zh = (d: Uint8Array, b: number, z: boolean) => {
-  const fnl = b2(d, b + 28), fn = strFromU8(d.subarray(b + 46, b + 46 + fnl), !(b2(d, b + 8) & 2048)), es = b + 46 + fnl, bs = b4(d, b + 20);
-  const [sc, su, off] = z && bs == 4294967295 ? z64e(d, es) : [bs, b4(d, b + 24), b4(d, b + 42)];
-  return [b2(d, b + 10), sc, su, fn, es + b2(d, b + 30) + b2(d, b + 32), off] as const;
+  const fnl = b2(d, b + 28), efl = b2(d, b + 30), fn = strFromU8(d.subarray(b + 46, b + 46 + fnl), !(b2(d, b + 8) & 2048)), es = b + 46 + fnl, bs = b4(d, b + 20);
+  const [sc, su, off] = z && bs == 4294967295 ? z64e(d, es, efl) : [bs, b4(d, b + 24), b4(d, b + 42)];
+  return [b2(d, b + 10), sc, su, fn, es + efl + b2(d, b + 32), off] as const;
 }
 
 // read zip64 extra field
-const z64e = (d: Uint8Array, b: number) => {
-  for (; b2(d, b) != 1; b += 4 + b2(d, b + 2));
+const z64e = (d: Uint8Array, b: number, l: number) => {
+  const e = b + l;
+  for (; b2(d, b) != 1; b += 4 + b2(d, b + 2)) {
+    if (b + 4 > e) err(13);
+  }
   return [b8(d, b + 12), b8(d, b + 4), b8(d, b + 20)] as const;
 }
 
@@ -3575,7 +3578,7 @@ export class Unzip {
             f = 2;
             let sc = b4(buf, i + 18), su = b4(buf, i + 22);
             const fn = strFromU8(buf.subarray(i + 30, i += 30 + fnl), !u);
-            if (sc == 4294967295) { [sc, su] = dd ? [-2] : z64e(buf, i); }
+            if (sc == 4294967295) { [sc, su] = dd ? [-2] : z64e(buf, i, es); }
             else if (dd) sc = -1;
             i += es;
             this.c = sc;
